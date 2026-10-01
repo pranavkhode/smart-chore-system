@@ -43,14 +43,35 @@ export function loadStateFromStorage() {
     }
 
     const parsed = JSON.parse(raw);
-    
-    // Ensure all critical properties exist
+    const validFlatmates = Array.isArray(parsed.flatmates) && parsed.flatmates.length > 0 ? parsed.flatmates : DEFAULT_FLATMATES;
+    const validChores = Array.isArray(parsed.chores) && parsed.chores.length > 0 ? parsed.chores : DEFAULT_CHORES;
+    const validWeek = Number(parsed.week) || 1;
+    const validHistory = Array.isArray(parsed.history) ? parsed.history : [];
+
+    let validAssignments = Array.isArray(parsed.assignments) ? parsed.assignments : [];
+
+    // If assignments is empty but we have chores and active flatmates, auto-populate
+    const available = validFlatmates.filter(f => !f.onLeave);
+    if (validAssignments.length === 0 && available.length > 0 && validChores.length > 0) {
+      const prevWeekAssignments = validHistory[validHistory.length - 1]?.assignments || [];
+      const generated = generateFairRoster({
+        flatmates: validFlatmates,
+        chores: validChores,
+        previousWeekAssignments: prevWeekAssignments,
+        history: validHistory,
+        targetWeek: validWeek
+      });
+      if (generated.success) {
+        validAssignments = generated.assignments;
+      }
+    }
+
     return {
-      week: parsed.week || 1,
-      flatmates: Array.isArray(parsed.flatmates) && parsed.flatmates.length > 0 ? parsed.flatmates : DEFAULT_FLATMATES,
-      chores: Array.isArray(parsed.chores) && parsed.chores.length > 0 ? parsed.chores : DEFAULT_CHORES,
-      assignments: Array.isArray(parsed.assignments) ? parsed.assignments : [],
-      history: Array.isArray(parsed.history) ? parsed.history : [],
+      week: validWeek,
+      flatmates: validFlatmates,
+      chores: validChores,
+      assignments: validAssignments,
+      history: validHistory,
       stats: parsed.stats || {
         totalChoresEverCompleted: 0,
         totalDifficultyPointsCompleted: 0,
