@@ -49,37 +49,42 @@ export function DashboardView({
   for (const c of chores) choreMap[c.id] = c;
 
   return (
-    <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-300">
+    <div className="space-y-5 sm:space-y-8 animate-in fade-in duration-300">
       {/* Banner / Current Week Hero */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 text-white p-6 sm:p-8 shadow-xl shadow-indigo-950/20">
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 text-white p-4 sm:p-8 shadow-xl shadow-indigo-950/20">
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4 sm:gap-6">
           <div className="space-y-2 max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/30 border border-indigo-400/30 text-indigo-200 text-xs font-bold uppercase tracking-wider">
+            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-indigo-500/30 border border-indigo-400/30 text-indigo-200 text-[10px] sm:text-xs font-bold uppercase tracking-wider">
               <Sparkles className="w-3.5 h-3.5 text-indigo-300" />
               <span>Smart Workload Balancing</span>
             </div>
             <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
-              Week {week} Chore Roster
+              <span className="sm:hidden">Week {week} Roster</span>
+              <span className="hidden sm:inline">Week {week} Chore Roster</span>
             </h1>
-            <p className="text-sm sm:text-base text-indigo-200/90 leading-relaxed">
+            <p className="text-xs leading-relaxed text-indigo-200/90 sm:hidden">
+              Fairly assigned chores, balanced week by week.
+            </p>
+            <p className="hidden text-sm leading-relaxed text-indigo-200/90 sm:block sm:text-base sm:max-w-2xl">
               Household chores distributed fairly based on difficulty ratings and consecutive-week rotation. Keep the house spotless together!
             </p>
           </div>
 
-          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-3">
             <button
               onClick={onRebalance}
               type="button"
-              className="inline-flex w-full items-center justify-center gap-2 px-4 py-2.5 bg-slate-800/80 hover:bg-slate-700/80 text-white text-xs sm:text-sm font-semibold rounded-xl border border-slate-600/60 shadow-sm transition-all cursor-pointer backdrop-blur-xs sm:w-auto"
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 px-2 sm:px-4 py-2.5 bg-slate-800/80 hover:bg-slate-700/80 text-white text-[11px] sm:text-sm font-semibold rounded-xl border border-slate-600/60 shadow-sm transition-all cursor-pointer backdrop-blur-xs sm:w-auto"
               title="Recalculate fair distribution"
             >
               <RotateCw className="w-4 h-4 text-indigo-300" />
-              <span>Rebalance Roster</span>
+              <span className="sm:hidden">Rebalance</span>
+              <span className="hidden sm:inline">Rebalance Roster</span>
             </button>
             <button
               onClick={onNextWeek}
               type="button"
-              className="inline-flex w-full items-center justify-center gap-2 px-5 py-2.5 bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 text-white text-xs sm:text-sm font-bold rounded-xl shadow-lg shadow-indigo-500/30 transition-all cursor-pointer sm:w-auto"
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 px-2 sm:px-5 py-2.5 bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 text-white text-[11px] sm:text-sm font-bold rounded-xl shadow-lg shadow-indigo-500/30 transition-all cursor-pointer sm:w-auto"
             >
               <span>Next Week</span>
               <ArrowRight className="w-4 h-4" />
@@ -113,7 +118,7 @@ export function DashboardView({
       )}
 
       {/* 7 KPI Cards */}
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-4 lg:grid-cols-7">
+      <div className="hidden grid-cols-2 gap-2.5 sm:grid sm:grid-cols-3 sm:gap-4 lg:grid-cols-7">
         {/* Current Week */}
         <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col justify-between hover:border-indigo-300 transition-all">
           <div className="flex items-center justify-between">
@@ -220,27 +225,71 @@ export function DashboardView({
         </div>
       </div>
 
+      <section className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs sm:hidden" aria-label="Weekly chore progress">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold text-slate-500">This week</p>
+            <p className="mt-1 text-lg font-extrabold tracking-tight text-slate-900">
+              {completedChores} <span className="text-sm font-semibold text-slate-400">of {totalAssigned} done</span>
+            </p>
+          </div>
+          <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-sm font-extrabold text-indigo-700">
+            {completionPercentage}%
+          </span>
+        </div>
+        <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+          <div
+            className="h-full rounded-full bg-indigo-600 transition-all duration-500"
+            style={{ width: `${completionPercentage}%` }}
+          />
+        </div>
+        <div className="mt-4 grid grid-cols-3 divide-x divide-slate-100 text-center">
+          <div className="px-1">
+            <p className="text-lg font-extrabold text-emerald-600">{completedChores}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Done</p>
+          </div>
+          <div className="px-1">
+            <p className="text-lg font-extrabold text-amber-600">{pendingChores}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">To do</p>
+          </div>
+          <div className="px-1">
+            <p className="text-lg font-extrabold text-slate-800">{availableFlatmates}<span className="text-xs font-semibold text-slate-400">/{totalFlatmates}</span></p>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Available</p>
+          </div>
+        </div>
+      </section>
+
       {/* Flatmates Individual Cards Grid (Soham, Pranay, Pranav, Himanshu) */}
       <div className="space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-bold text-slate-900 tracking-tight">
-              Flatmate Duty Cards
+              <span className="sm:hidden">This week's chores</span>
+              <span className="hidden sm:inline">Flatmate Duty Cards</span>
             </h2>
-            <p className="text-xs text-slate-500">
+            <p className="hidden text-xs text-slate-500 sm:block">
               Current weekly assignments, difficulty points, and completion actions
             </p>
           </div>
-          <button
-            onClick={() => onNavigate('flatmates')}
-            className="inline-flex items-center gap-1 self-start text-xs font-semibold text-indigo-600 hover:text-indigo-800 cursor-pointer sm:self-auto"
-          >
-            <span>Manage Flatmates</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
+          <div className="flex flex-wrap gap-4">
+            <button
+              onClick={() => onNavigate('flatmates')}
+              className="inline-flex min-h-10 items-center gap-1 self-start text-xs font-semibold text-indigo-600 hover:text-indigo-800 cursor-pointer sm:self-auto"
+            >
+              <span>Manage Flatmates</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => onNavigate('roster')}
+              className="inline-flex min-h-10 items-center gap-1 self-start text-xs font-semibold text-indigo-600 hover:text-indigo-800 cursor-pointer sm:self-auto"
+            >
+              <span>Full roster</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
           {flatmates.map((flatmate) => {
             const flatmateAssignments = assignments.filter(a => a.flatmateId === flatmate.id);
             const totalDiff = flatmateAssignments.reduce((acc, a) => {
@@ -262,14 +311,14 @@ export function DashboardView({
                 }`}
               >
                 {/* Flatmate Header */}
-                <div className="p-5 border-b border-slate-100">
+                <div className="p-4 sm:p-5 border-b border-slate-100">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
                       <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-2xl shadow-inner border border-slate-200/60">
                         {flatmate.avatar}
                       </div>
-                      <div>
-                        <h3 className="font-bold text-slate-900 text-base">
+                      <div className="min-w-0">
+                        <h3 className="truncate font-bold text-slate-900 text-base">
                           {flatmate.name}
                         </h3>
                         <p className="text-xs text-slate-500">
@@ -302,7 +351,7 @@ export function DashboardView({
                 </div>
 
                 {/* Assigned Chores Body */}
-                <div className="p-5 flex-1 flex flex-col justify-between space-y-3">
+                <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3">
                   <div className="space-y-2.5">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
                       Assigned This Week:
@@ -351,7 +400,7 @@ export function DashboardView({
                                 <button
                                   type="button"
                                   onClick={() => onToggleChoreDone(a.id)}
-                                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shrink-0 ${
+                                  className={`min-h-10 px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shrink-0 ${
                                     isDone
                                       ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
                                       : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 shadow-xs'
@@ -381,7 +430,7 @@ export function DashboardView({
                     <button
                       type="button"
                       onClick={() => onToggleLeave(flatmate.id)}
-                      className={`px-2.5 py-1 rounded-lg font-semibold text-xs transition-all cursor-pointer ${
+                      className={`min-h-10 px-2.5 py-1 rounded-lg font-semibold text-xs transition-all cursor-pointer ${
                         flatmate.onLeave
                           ? 'bg-purple-600 text-white hover:bg-purple-700'
                           : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
@@ -398,7 +447,7 @@ export function DashboardView({
       </div>
 
       {/* Current Weekly Roster Table Preview */}
-      <div className="rounded-2xl bg-white border border-slate-200/90 shadow-xs overflow-hidden">
+      <div className="hidden sm:block rounded-2xl bg-white border border-slate-200/90 shadow-xs overflow-hidden">
         <div className="p-5 border-b border-slate-100 flex items-center justify-between">
           <div>
             <h3 className="font-bold text-slate-900 text-base">
