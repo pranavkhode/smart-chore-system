@@ -66,11 +66,11 @@ export function DashboardView({
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
             <button
               onClick={onRebalance}
               type="button"
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-800/80 hover:bg-slate-700/80 text-white text-xs sm:text-sm font-semibold rounded-xl border border-slate-600/60 shadow-sm transition-all cursor-pointer backdrop-blur-xs"
+              className="inline-flex w-full items-center justify-center gap-2 px-4 py-2.5 bg-slate-800/80 hover:bg-slate-700/80 text-white text-xs sm:text-sm font-semibold rounded-xl border border-slate-600/60 shadow-sm transition-all cursor-pointer backdrop-blur-xs sm:w-auto"
               title="Recalculate fair distribution"
             >
               <RotateCw className="w-4 h-4 text-indigo-300" />
@@ -79,7 +79,7 @@ export function DashboardView({
             <button
               onClick={onNextWeek}
               type="button"
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 text-white text-xs sm:text-sm font-bold rounded-xl shadow-lg shadow-indigo-500/30 transition-all cursor-pointer"
+              className="inline-flex w-full items-center justify-center gap-2 px-5 py-2.5 bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 text-white text-xs sm:text-sm font-bold rounded-xl shadow-lg shadow-indigo-500/30 transition-all cursor-pointer sm:w-auto"
             >
               <span>Next Week</span>
               <ArrowRight className="w-4 h-4" />
@@ -113,7 +113,7 @@ export function DashboardView({
       )}
 
       {/* 7 KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-4 lg:grid-cols-7">
         {/* Current Week */}
         <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col justify-between hover:border-indigo-300 transition-all">
           <div className="flex items-center justify-between">
@@ -222,7 +222,7 @@ export function DashboardView({
 
       {/* Flatmates Individual Cards Grid (Soham, Pranay, Pranav, Himanshu) */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-bold text-slate-900 tracking-tight">
               Flatmate Duty Cards
@@ -233,14 +233,14 @@ export function DashboardView({
           </div>
           <button
             onClick={() => onNavigate('flatmates')}
-            className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer"
+            className="inline-flex items-center gap-1 self-start text-xs font-semibold text-indigo-600 hover:text-indigo-800 cursor-pointer sm:self-auto"
           >
             <span>Manage Flatmates</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {flatmates.map((flatmate) => {
             const flatmateAssignments = assignments.filter(a => a.flatmateId === flatmate.id);
             const totalDiff = flatmateAssignments.reduce((acc, a) => {
