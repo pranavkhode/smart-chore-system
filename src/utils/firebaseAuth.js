@@ -53,6 +53,7 @@ export async function signOutUser() {
 
 export function getAuthErrorMessage(error) {
   const messages = {
+    'auth/configuration-not-found': 'Firebase Authentication is not set up for this project yet. Enable Email/Password in Firebase Console → Authentication → Sign-in method.',
     'auth/email-already-in-use': 'An account with this email already exists. Please log in instead.',
     'auth/invalid-credential': 'Invalid email or password.',
     'auth/invalid-email': 'Please enter a valid email address.',
