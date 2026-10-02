@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Sidebar } from './components/Sidebar.jsx';
 import { Navbar } from './components/Navbar.jsx';
 import { LoginPage } from './components/LoginPage.jsx';
@@ -9,81 +9,194 @@ import { WeeklyRosterView } from './views/WeeklyRosterView.jsx';
 import { StatisticsView } from './views/StatisticsView.jsx';
 import { HistoryView } from './views/HistoryView.jsx';
 import { TestScenariosModal } from './components/TestScenariosModal.jsx';
+import { createEmptyUserState } from './utils/storage.js';
+import { firebaseConfigured, firebaseSetupMessage } from './utils/firebase.js';
 import {
-  loadStateFromStorage,
-  saveStateToStorage,
-  resetStorageToDefaults
-} from './utils/storage.js';
-import {
-  authenticateUser,
-  clearCurrentUser,
-  getCurrentUser,
-  registerUser,
-  setCurrentUser
-} from './utils/userStorage.js';
+  createAccount,
+  getAuthErrorMessage,
+  observeAuth,
+  signIn,
+  signOutUser
+} from './utils/firebaseAuth.js';
+import { saveUserState, subscribeToUserState } from './utils/cloudStorage.js';
+import { getLegacyAccountForCredentials, removeLegacyAccount } from './utils/legacyMigration.js';
 import {
   generateFairRoster,
   rebalanceCurrentWeek
 } from './utils/fairRosterAlgorithm.js';
 import { fireSuccessConfetti, fireGrandCelebration } from './utils/confetti.js';
 import { DEFAULT_FLATMATES, DEFAULT_CHORES } from './constants/defaultData.js';
-import { CheckCircle2, AlertCircle, Info, Sparkles, X } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
+
+function serializeState(value) {
+  if (Array.isArray(value)) {
+    return `[${value.map(serializeState).join(',')}]`;
+  }
+
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${serializeState(value[key])}`).join(',')}}`;
+  }
+
+  return JSON.stringify(value);
+}
 
 export function App() {
-  const currentUser = getCurrentUser();
-
   // App state
-  const [appState, setAppState] = useState(() => loadStateFromStorage(currentUser?.id));
+  const [appState, setAppState] = useState(createEmptyUserState);
+  const appStateSignature = useRef(serializeState(appState));
   const [activeView, setActiveView] = useState('dashboard');
   const [isTestModalOpen, setIsTestModalOpen] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [toast, setToast] = useState(null);
-  const [sessionUser, setSessionUser] = useState(currentUser);
-  const [authError, setAuthError] = useState('');
+  const [sessionUser, setSessionUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(firebaseConfigured);
+  const [stateLoading, setStateLoading] = useState(false);
+  const [loadedUserId, setLoadedUserId] = useState(null);
+  const [cloudLoadAttempt, setCloudLoadAttempt] = useState(0);
+  const [authError, setAuthError] = useState(firebaseConfigured ? '' : firebaseSetupMessage);
+  const [syncError, setSyncError] = useState('');
+  const legacyMigration = useRef(null);
 
   useEffect(() => {
-    if (sessionUser) {
-      setCurrentUser(sessionUser);
-      setAppState(loadStateFromStorage(sessionUser.id));
-    } else {
-      clearCurrentUser();
-    }
-  }, [sessionUser]);
+    appStateSignature.current = serializeState(appState);
+  }, [appState]);
 
-  // Sync to localStorage whenever appState changes
   useEffect(() => {
-    if (sessionUser) {
-      saveStateToStorage(appState, sessionUser.id);
-    }
-  }, [appState, sessionUser]);
+    if (!firebaseConfigured) return undefined;
 
-  const handleAuthSubmit = ({ mode, name, email, password }) => {
-    if (mode === 'signup') {
-      const result = registerUser({ name, email, password });
-      if (result.error) {
-        setAuthError(result.error);
+    return observeAuth(user => {
+      setAuthLoading(false);
+      setSessionUser(user);
+      setLoadedUserId(null);
+      setAppState(createEmptyUserState());
+      setStateLoading(Boolean(user));
+      setSyncError('');
+      setAuthError('');
+      if (!user) legacyMigration.current = null;
+    }, error => {
+      setAuthError(getAuthErrorMessage(error));
+      setAuthLoading(false);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!sessionUser) return undefined;
+
+    let isActive = true;
+    let initialSnapshotHandled = false;
+    const unsubscribe = subscribeToUserState(sessionUser.id, async cloudState => {
+      if (!isActive) return;
+
+      if (!initialSnapshotHandled) {
+        initialSnapshotHandled = true;
+
+        if (cloudState) {
+          setAppState(cloudState);
+          setLoadedUserId(sessionUser.id);
+          setStateLoading(false);
+          const oldAccount = legacyMigration.current;
+          if (oldAccount?.email === sessionUser.email) {
+            try {
+              removeLegacyAccount(oldAccount.id);
+            } catch (error) {
+              setSyncError(`Cloud data loaded, but old local account cleanup failed: ${error.message}`);
+            }
+            legacyMigration.current = null;
+          }
+          return;
+        }
+
+        const oldAccount = legacyMigration.current;
+        const initialState = oldAccount?.email === sessionUser.email
+          ? oldAccount.state
+          : createEmptyUserState();
+
+        try {
+          await saveUserState(sessionUser.id, initialState);
+          if (!isActive) return;
+          setAppState(initialState);
+          setLoadedUserId(sessionUser.id);
+          setStateLoading(false);
+          if (oldAccount?.email === sessionUser.email) {
+            try {
+              removeLegacyAccount(oldAccount.id);
+            } catch (error) {
+              setSyncError(`Cloud data was initialized, but old local account cleanup failed: ${error.message}`);
+            }
+            legacyMigration.current = null;
+          }
+        } catch (error) {
+          if (!isActive) return;
+          setSyncError(`Could not initialize cloud data: ${error.message}`);
+          setStateLoading(false);
+        }
         return;
       }
 
-      setSessionUser(result.user);
-      setAuthError('');
-      return;
-    }
+      if (cloudState && serializeState(cloudState) !== appStateSignature.current) {
+        setAppState(cloudState);
+      }
+    }, error => {
+      if (!isActive) return;
+      setSyncError(`Could not load cloud data: ${error.message}`);
+      setStateLoading(false);
+    });
 
-    const result = authenticateUser({ email, password });
-    if (result.error) {
-      setAuthError(result.error);
-      return;
-    }
+    return () => {
+      isActive = false;
+      unsubscribe();
+    };
+  }, [sessionUser, cloudLoadAttempt]);
 
-    setSessionUser(result.user);
+  useEffect(() => {
+    if (!sessionUser || loadedUserId !== sessionUser.id || stateLoading) return undefined;
+
+    const timeout = window.setTimeout(() => {
+      saveUserState(sessionUser.id, appState).then(() => {
+        setSyncError('');
+      }).catch(error => {
+        setSyncError(`Could not save changes to the cloud: ${error.message}`);
+      });
+    }, 300);
+
+    return () => window.clearTimeout(timeout);
+  }, [appState, loadedUserId, sessionUser, stateLoading]);
+
+  const handleAuthSubmit = async ({ mode, name, email, password }) => {
+    try {
+      legacyMigration.current = getLegacyAccountForCredentials(email, password);
+    } catch (error) {
+      console.error('Unable to inspect previous local account for migration:', error);
+      legacyMigration.current = null;
+    }
     setAuthError('');
+
+    try {
+      if (mode === 'signup') {
+        await createAccount({ name, email, password });
+      } else {
+        await signIn({ email, password });
+      }
+      setAuthError('');
+    } catch (error) {
+      legacyMigration.current = null;
+      setAuthError(getAuthErrorMessage(error));
+    }
   };
 
-  const handleLogout = () => {
-    clearCurrentUser();
-    setSessionUser(null);
+  const handleLogout = async () => {
     setAuthError('');
+    try {
+      await signOutUser();
+    } catch (error) {
+      setAuthError(getAuthErrorMessage(error));
+    }
+  };
+
+  const handleRetryCloudLoad = () => {
+    setSyncError('');
+    setStateLoading(true);
+    setCloudLoadAttempt(attempt => attempt + 1);
   };
 
   // Show auto-dismissing toast notifications
@@ -94,7 +207,7 @@ export function App() {
     }, 3500);
   }, []);
 
-  const { week, flatmates, chores, assignments, history, stats } = appState;
+  const { week, flatmates, chores, assignments, history } = appState;
 
   // Active chore and flatmate metrics
   const availableFlatmates = flatmates.filter(f => !f.onLeave);
@@ -419,9 +532,9 @@ export function App() {
    * Reset Defaults
    */
   const handleResetDefaults = () => {
-    const fresh = resetStorageToDefaults(sessionUser?.id);
+    const fresh = createEmptyUserState();
     setAppState(fresh);
-    showToast(sessionUser ? 'Fresh state created for your account. Add your flatmates and chores to begin.' : 'Reset all data to default flatmates & chores (Week 1).', 'info');
+    showToast('Fresh cloud state created for your account. Add your flatmates and chores to begin.', 'info');
   };
 
   /**
@@ -553,8 +666,49 @@ export function App() {
     assignmentWarning = `High Workload Alert: Only ${availableFlatmates[0].name} is active. All active household chores have been assigned to them.`;
   }
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4 text-center text-sm font-medium text-slate-300">
+        Connecting to your secure account...
+      </div>
+    );
+  }
+
   if (!sessionUser) {
     return <LoginPage onSubmit={handleAuthSubmit} authError={authError} />;
+  }
+
+  if (loadedUserId !== sessionUser.id) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4">
+        <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-slate-900 p-6 text-center text-white shadow-2xl">
+          <h1 className="text-xl font-bold">Connecting your chore data</h1>
+          {syncError ? (
+            <>
+              <p className="mt-3 text-sm text-rose-200">{syncError}</p>
+              <div className="mt-5 flex justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleRetryCloudLoad}
+                  className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold hover:bg-indigo-500"
+                >
+                  Retry
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-800"
+                >
+                  Sign out
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="mt-2 text-sm text-slate-400">Loading your latest saved changes...</p>
+          )}
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -590,6 +744,12 @@ export function App() {
 
         {/* View Container */}
         <main className="flex-1 p-4 sm:p-8 max-w-7xl w-full mx-auto">
+          {syncError && (
+            <div role="alert" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              {syncError}
+            </div>
+          )}
+
           {activeView === 'dashboard' && (
             <DashboardView
               week={week}

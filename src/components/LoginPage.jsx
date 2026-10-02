@@ -3,6 +3,7 @@ import { LockKeyhole, UserPlus, LogIn, ShieldCheck } from 'lucide-react';
 
 export function LoginPage({ onSubmit, authError }) {
   const [mode, setMode] = useState('login');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -14,9 +15,14 @@ export function LoginPage({ onSubmit, authError }) {
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    onSubmit({ ...form, mode });
+    setIsSubmitting(true);
+    try {
+      await onSubmit({ ...form, mode });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const isSignup = mode === 'signup';
@@ -35,6 +41,7 @@ export function LoginPage({ onSubmit, authError }) {
             <button
               type="button"
               onClick={() => setMode('login')}
+              disabled={isSubmitting}
               className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
                 !isSignup
                   ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
@@ -50,6 +57,7 @@ export function LoginPage({ onSubmit, authError }) {
             <button
               type="button"
               onClick={() => setMode('signup')}
+              disabled={isSubmitting}
               className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
                 isSignup
                   ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
@@ -79,6 +87,8 @@ export function LoginPage({ onSubmit, authError }) {
                 <input
                   type="text"
                   name="name"
+                  autoComplete="name"
+                  required
                   value={form.name}
                   onChange={handleChange}
                   placeholder="Your name"
@@ -92,6 +102,8 @@ export function LoginPage({ onSubmit, authError }) {
               <input
                 type="email"
                 name="email"
+                autoComplete="email"
+                required
                 value={form.email}
                 onChange={handleChange}
                 placeholder="you@example.com"
@@ -104,6 +116,9 @@ export function LoginPage({ onSubmit, authError }) {
               <input
                 type="password"
                 name="password"
+                autoComplete={isSignup ? 'new-password' : 'current-password'}
+                minLength={6}
+                required
                 value={form.password}
                 onChange={handleChange}
                 placeholder="Enter your password"
@@ -119,10 +134,11 @@ export function LoginPage({ onSubmit, authError }) {
 
             <button
               type="submit"
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-indigo-600/30 transition hover:bg-indigo-500"
+              disabled={isSubmitting}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-indigo-600/30 transition hover:bg-indigo-500 disabled:cursor-wait disabled:opacity-70"
             >
               {isSignup ? <UserPlus className="h-4 w-4" /> : <LockKeyhole className="h-4 w-4" />}
-              {isSignup ? 'Create account' : 'Login to dashboard'}
+              {isSubmitting ? 'Connecting...' : isSignup ? 'Create account' : 'Login to dashboard'}
             </button>
           </form>
         </div>
