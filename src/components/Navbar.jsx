@@ -5,9 +5,11 @@ export function Navbar({
   activeView,
   week,
   completionRate,
+  currentUser,
   onNextWeek,
   onOpenTests,
   onReset,
+  onLogout,
   setIsMobileOpen
 }) {
   const viewTitles = {
@@ -75,6 +77,24 @@ export function Navbar({
           >
             <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
             <span className="hidden xs:inline">Test Suite</span>
+          </button>
+
+          <div className="hidden sm:flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5">
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-600 text-[10px] font-bold text-white">
+              {currentUser?.name?.charAt(0)?.toUpperCase() || 'U'}
+            </div>
+            <div className="text-left leading-tight">
+              <div className="text-[9px] uppercase tracking-[0.18em] text-slate-400">User</div>
+              <div className="text-xs font-semibold text-slate-700">{currentUser?.name || 'Guest'}</div>
+            </div>
+          </div>
+
+          <button
+            onClick={onLogout}
+            type="button"
+            className="inline-flex items-center gap-2 px-3 py-1.5 text-xs sm:text-sm font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer"
+          >
+            Logout
           </button>
 
           {/* Next Week Button */}
