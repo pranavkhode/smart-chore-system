@@ -30,27 +30,32 @@ import { DEFAULT_FLATMATES, DEFAULT_CHORES } from './constants/defaultData.js';
 import { CheckCircle2, AlertCircle, Info, Sparkles, X } from 'lucide-react';
 
 export function App() {
+  const currentUser = getCurrentUser();
+
   // App state
-  const [appState, setAppState] = useState(() => loadStateFromStorage());
+  const [appState, setAppState] = useState(() => loadStateFromStorage(currentUser?.id));
   const [activeView, setActiveView] = useState('dashboard');
   const [isTestModalOpen, setIsTestModalOpen] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [toast, setToast] = useState(null);
-  const [sessionUser, setSessionUser] = useState(() => getCurrentUser());
+  const [sessionUser, setSessionUser] = useState(currentUser);
   const [authError, setAuthError] = useState('');
-
-  // Sync to localStorage whenever appState changes
-  useEffect(() => {
-    saveStateToStorage(appState);
-  }, [appState]);
 
   useEffect(() => {
     if (sessionUser) {
       setCurrentUser(sessionUser);
+      setAppState(loadStateFromStorage(sessionUser.id));
     } else {
       clearCurrentUser();
     }
   }, [sessionUser]);
+
+  // Sync to localStorage whenever appState changes
+  useEffect(() => {
+    if (sessionUser) {
+      saveStateToStorage(appState, sessionUser.id);
+    }
+  }, [appState, sessionUser]);
 
   const handleAuthSubmit = ({ mode, name, email, password }) => {
     if (mode === 'signup') {
@@ -414,9 +419,9 @@ export function App() {
    * Reset Defaults
    */
   const handleResetDefaults = () => {
-    const fresh = resetStorageToDefaults();
+    const fresh = resetStorageToDefaults(sessionUser?.id);
     setAppState(fresh);
-    showToast('Reset all data to default flatmates & chores (Week 1).', 'info');
+    showToast(sessionUser ? 'Fresh state created for your account. Add your flatmates and chores to begin.' : 'Reset all data to default flatmates & chores (Week 1).', 'info');
   };
 
   /**
