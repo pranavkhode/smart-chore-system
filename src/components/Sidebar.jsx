@@ -10,7 +10,8 @@ import {
   HelpCircle,
   Home,
   CheckCircle2,
-  Calendar
+  Calendar,
+  X
 } from 'lucide-react';
 
 export function Sidebar({
@@ -61,18 +62,29 @@ export function Sidebar({
         {/* Brand Header */}
         <div>
           <div className="p-6 border-b border-slate-800/80">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/30 text-white font-black text-xl">
-                <Home className="w-5 h-5 text-white" />
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/30 text-white font-black text-xl">
+                  <Home className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h1 className="font-extrabold text-base tracking-tight text-white leading-tight">
+                    SMART CHORE
+                  </h1>
+                  <p className="text-[11px] font-semibold tracking-wider uppercase text-indigo-400">
+                    Roster & Fair Flatmates
+                  </p>
+                </div>
               </div>
-              <div>
-                <h1 className="font-extrabold text-base tracking-tight text-white leading-tight">
-                  SMART CHORE
-                </h1>
-                <p className="text-[11px] font-semibold tracking-wider uppercase text-indigo-400">
-                  Roster & Fair Flatmates
-                </p>
-              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsMobileOpen(false)}
+                className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 lg:hidden"
+                aria-label="Close menu"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
             
             <div className="mt-4 px-3 py-2 rounded-lg bg-slate-800/60 border border-slate-700/60 flex items-center justify-between">
@@ -96,7 +108,7 @@ export function Sidebar({
                   key={item.id}
                   onClick={() => handleNavClick(item.id)}
                   type="button"
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer ${
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer min-h-[48px] ${
                     isActive
                       ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 font-semibold'
                       : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
