@@ -2,8 +2,76 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isHouseholdMember(householdId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.auth.uid));
+    }
+
+    function isHouseholdMemberAfter(householdId, userId) {
+      return existsAfter(/databases/$(database)/documents/households/$(householdId)/members/$(userId));
+    }
+
+    match /households/{householdId} {
+      allow get: if isHouseholdMember(householdId);
+      allow list: if false;
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.inviteCode == householdId
+        && request.resource.data.state is map;
+      allow update: if isHouseholdMember(householdId)
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.inviteCode == resource.data.inviteCode
+        && request.resource.data.state is map;
+      allow delete: if false;
+
+      match /members/{memberId} {
+        allow read: if isHouseholdMember(householdId);
+        allow create: if signedIn()
+          && memberId == request.auth.uid
+          && isHouseholdMemberAfter(householdId, request.auth.uid)
+          && request.resource.data.uid == request.auth.uid
+          && (
+            getAfter(/databases/$(database)/documents/households/$(householdId)).data.ownerId == request.auth.uid
+            || (
+              request.resource.data.inviteCode is string
+              && exists(/databases/$(database)/documents/householdInvites/$(request.resource.data.inviteCode))
+              && get(/databases/$(database)/documents/householdInvites/$(request.resource.data.inviteCode)).data.householdId == householdId
+            )
+          );
+        allow update, delete: if false;
+      }
+    }
+
+    match /householdInvites/{inviteCode} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.householdId is string
+        && getAfter(/databases/$(database)/documents/households/$(request.resource.data.householdId)).data.ownerId == request.auth.uid
+        && getAfter(/databases/$(database)/documents/households/$(request.resource.data.householdId)).data.inviteCode == inviteCode;
+      allow update, delete: if false;
+    }
+
+    match /userHouseholds/{userId} {
+      allow read: if signedIn() && request.auth.uid == userId;
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.householdId is string
+        && isHouseholdMemberAfter(request.resource.data.householdId, userId);
+      allow update: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.householdId == resource.data.householdId
+        && isHouseholdMember(request.resource.data.householdId);
+      allow delete: if false;
+    }
+
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if false;
     }
   }
 }

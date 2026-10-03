@@ -1,6 +1,6 @@
 # Smart Chore Roster
 
-A household chore roster built with React, Vite, Firebase Authentication, and Cloud Firestore. Sign in with the same email and password on each device to access the same live chore data.
+A household chore roster built with React, Vite, Firebase Authentication, and Cloud Firestore. Each flatmate signs in with their own account, then joins the same household to share one live chore roster across devices.
 
 ## Firebase setup
 
@@ -26,7 +26,9 @@ A household chore roster built with React, Vite, Firebase Authentication, and Cl
    npm run dev
    ```
 
-Each signed-in Firebase user can read and write only their own `/users/{uid}` document. Updates are saved to Firestore and synchronized live to other signed-in devices. Existing local accounts can sign up with the same email/password; if the matching account exists on the current device and has no cloud record yet, its chore state is migrated once after authentication.
+After signing in, create a household or join one with the 36-character invite code shared by a household member. New households start with an empty roster. All household members see and can update the same chores, assignments, completion statuses, and history in real time. The invite code is visible in the app and can be copied from the shared-household banner.
+
+Firestore rules allow access only to authenticated household members, with the high-entropy invite code used to join. Each account can belong to one household.
 
 ## Other commands
 

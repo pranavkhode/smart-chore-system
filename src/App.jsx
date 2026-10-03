@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Sidebar } from './components/Sidebar.jsx';
 import { Navbar } from './components/Navbar.jsx';
 import { LoginPage } from './components/LoginPage.jsx';
+import { HouseholdSetup } from './components/HouseholdSetup.jsx';
 import { DashboardView } from './views/DashboardView.jsx';
 import { FlatmatesView } from './views/FlatmatesView.jsx';
 import { ChoresView } from './views/ChoresView.jsx';
@@ -18,8 +19,13 @@ import {
   signIn,
   signOutUser
 } from './utils/firebaseAuth.js';
-import { saveUserState, subscribeToUserState } from './utils/cloudStorage.js';
-import { getLegacyAccountForCredentials, removeLegacyAccount } from './utils/legacyMigration.js';
+import {
+  createHousehold,
+  getUserHouseholdId,
+  joinHousehold,
+  saveHouseholdState,
+  subscribeToUserHouseholdState
+} from './utils/cloudStorage.js';
 import {
   generateFairRoster,
   rebalanceCurrentWeek
@@ -50,12 +56,15 @@ export function App() {
   const [toast, setToast] = useState(null);
   const [sessionUser, setSessionUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(firebaseConfigured);
+  const [householdLookupLoading, setHouseholdLookupLoading] = useState(false);
+  const [householdId, setHouseholdId] = useState(null);
+  const [householdInfo, setHouseholdInfo] = useState(null);
   const [stateLoading, setStateLoading] = useState(false);
-  const [loadedUserId, setLoadedUserId] = useState(null);
-  const [cloudLoadAttempt, setCloudLoadAttempt] = useState(0);
+  const [loadedHouseholdId, setLoadedHouseholdId] = useState(null);
+  const [householdLookupAttempt, setHouseholdLookupAttempt] = useState(0);
+  const [stateLoadAttempt, setStateLoadAttempt] = useState(0);
   const [authError, setAuthError] = useState(firebaseConfigured ? '' : firebaseSetupMessage);
   const [syncError, setSyncError] = useState('');
-  const legacyMigration = useRef(null);
 
   useEffect(() => {
     appStateSignature.current = serializeState(appState);
@@ -67,12 +76,14 @@ export function App() {
     return observeAuth(user => {
       setAuthLoading(false);
       setSessionUser(user);
-      setLoadedUserId(null);
+      setHouseholdLookupLoading(Boolean(user));
+      setHouseholdId(null);
+      setHouseholdInfo(null);
+      setLoadedHouseholdId(null);
       setAppState(createEmptyUserState());
       setStateLoading(Boolean(user));
       setSyncError('');
       setAuthError('');
-      if (!user) legacyMigration.current = null;
     }, error => {
       setAuthError(getAuthErrorMessage(error));
       setAuthLoading(false);
@@ -83,59 +94,35 @@ export function App() {
     if (!sessionUser) return undefined;
 
     let isActive = true;
-    let initialSnapshotHandled = false;
-    const unsubscribe = subscribeToUserState(sessionUser.id, async cloudState => {
+    getUserHouseholdId(sessionUser.id).then(id => {
       if (!isActive) return;
+      setHouseholdId(id);
+      setHouseholdLookupLoading(false);
+      setSyncError('');
+    }).catch(error => {
+      if (!isActive) return;
+      setSyncError(`Could not find your household: ${error.message}`);
+      setHouseholdLookupLoading(false);
+    });
 
-      if (!initialSnapshotHandled) {
-        initialSnapshotHandled = true;
+    return () => {
+      isActive = false;
+    };
+  }, [sessionUser, householdLookupAttempt]);
 
-        if (cloudState) {
-          setAppState(cloudState);
-          setLoadedUserId(sessionUser.id);
-          setStateLoading(false);
-          const oldAccount = legacyMigration.current;
-          if (oldAccount?.email === sessionUser.email) {
-            try {
-              removeLegacyAccount(oldAccount.id);
-            } catch (error) {
-              setSyncError(`Cloud data loaded, but old local account cleanup failed: ${error.message}`);
-            }
-            legacyMigration.current = null;
-          }
-          return;
-        }
+  useEffect(() => {
+    if (!sessionUser || !householdId) return undefined;
 
-        const oldAccount = legacyMigration.current;
-        const initialState = oldAccount?.email === sessionUser.email
-          ? oldAccount.state
-          : createEmptyUserState();
-
-        try {
-          await saveUserState(sessionUser.id, initialState);
-          if (!isActive) return;
-          setAppState(initialState);
-          setLoadedUserId(sessionUser.id);
-          setStateLoading(false);
-          if (oldAccount?.email === sessionUser.email) {
-            try {
-              removeLegacyAccount(oldAccount.id);
-            } catch (error) {
-              setSyncError(`Cloud data was initialized, but old local account cleanup failed: ${error.message}`);
-            }
-            legacyMigration.current = null;
-          }
-        } catch (error) {
-          if (!isActive) return;
-          setSyncError(`Could not initialize cloud data: ${error.message}`);
-          setStateLoading(false);
-        }
-        return;
+    let isActive = true;
+    const unsubscribe = subscribeToUserHouseholdState(householdId, household => {
+      if (!isActive) return;
+      if (serializeState(household.state) !== appStateSignature.current) {
+        setAppState(household.state);
       }
-
-      if (cloudState && serializeState(cloudState) !== appStateSignature.current) {
-        setAppState(cloudState);
-      }
+      setHouseholdInfo(household);
+      setLoadedHouseholdId(householdId);
+      setStateLoading(false);
+      setSyncError('');
     }, error => {
       if (!isActive) return;
       setSyncError(`Could not load cloud data: ${error.message}`);
@@ -146,13 +133,13 @@ export function App() {
       isActive = false;
       unsubscribe();
     };
-  }, [sessionUser, cloudLoadAttempt]);
+  }, [sessionUser, householdId, stateLoadAttempt]);
 
   useEffect(() => {
-    if (!sessionUser || loadedUserId !== sessionUser.id || stateLoading) return undefined;
+    if (!sessionUser || !householdId || loadedHouseholdId !== householdId || stateLoading) return undefined;
 
     const timeout = window.setTimeout(() => {
-      saveUserState(sessionUser.id, appState).then(() => {
+      saveHouseholdState(householdId, appState).then(() => {
         setSyncError('');
       }).catch(error => {
         setSyncError(`Could not save changes to the cloud: ${error.message}`);
@@ -160,15 +147,9 @@ export function App() {
     }, 300);
 
     return () => window.clearTimeout(timeout);
-  }, [appState, loadedUserId, sessionUser, stateLoading]);
+  }, [appState, householdId, loadedHouseholdId, sessionUser, stateLoading]);
 
   const handleAuthSubmit = async ({ mode, name, email, password }) => {
-    try {
-      legacyMigration.current = getLegacyAccountForCredentials(email, password);
-    } catch (error) {
-      console.error('Unable to inspect previous local account for migration:', error);
-      legacyMigration.current = null;
-    }
     setAuthError('');
 
     try {
@@ -179,7 +160,6 @@ export function App() {
       }
       setAuthError('');
     } catch (error) {
-      legacyMigration.current = null;
       setAuthError(getAuthErrorMessage(error));
     }
   };
@@ -193,10 +173,41 @@ export function App() {
     }
   };
 
+  const handleCreateHousehold = async name => {
+    setSyncError('');
+    setHouseholdLookupLoading(true);
+    try {
+      const id = await createHousehold(sessionUser, name);
+      setHouseholdId(id);
+      setHouseholdLookupLoading(false);
+    } catch (error) {
+      setSyncError(`Could not create household: ${error.message}`);
+      setHouseholdLookupLoading(false);
+    }
+  };
+
+  const handleJoinHousehold = async inviteCode => {
+    setSyncError('');
+    setHouseholdLookupLoading(true);
+    try {
+      const id = await joinHousehold(sessionUser, inviteCode);
+      setHouseholdId(id);
+      setHouseholdLookupLoading(false);
+    } catch (error) {
+      setSyncError(error.message);
+      setHouseholdLookupLoading(false);
+    }
+  };
+
   const handleRetryCloudLoad = () => {
     setSyncError('');
-    setStateLoading(true);
-    setCloudLoadAttempt(attempt => attempt + 1);
+    if (householdId) {
+      setStateLoading(true);
+      setStateLoadAttempt(attempt => attempt + 1);
+    } else {
+      setHouseholdLookupLoading(true);
+      setHouseholdLookupAttempt(attempt => attempt + 1);
+    }
   };
 
   // Show auto-dismissing toast notifications
@@ -206,6 +217,15 @@ export function App() {
       setToast(current => (current?.id ? null : current));
     }, 3500);
   }, []);
+
+  const handleCopyInviteCode = async () => {
+    try {
+      await navigator.clipboard.writeText(householdInfo.inviteCode);
+      showToast('Household invite code copied. Share it with your flatmates.');
+    } catch (error) {
+      showToast(`Could not copy invite code: ${error.message}`, 'error');
+    }
+  };
 
   const { week, flatmates, chores, assignments, history } = appState;
 
@@ -678,7 +698,29 @@ export function App() {
     return <LoginPage onSubmit={handleAuthSubmit} authError={authError} />;
   }
 
-  if (loadedUserId !== sessionUser.id) {
+  if (householdLookupLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4 text-center text-sm font-medium text-slate-300">
+        Connecting to your household...
+      </div>
+    );
+  }
+
+  if (!householdId) {
+    return (
+      <HouseholdSetup
+        user={sessionUser}
+        error={syncError}
+        isLoading={householdLookupLoading}
+        onCreate={handleCreateHousehold}
+        onJoin={handleJoinHousehold}
+        onRetry={handleRetryCloudLoad}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
+  if (loadedHouseholdId !== householdId) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4">
         <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-slate-900 p-6 text-center text-white shadow-2xl">
@@ -744,6 +786,23 @@ export function App() {
 
         {/* View Container */}
         <main className="flex-1 p-4 sm:p-8 max-w-7xl w-full mx-auto">
+          <section className="mb-5 flex flex-col gap-3 rounded-2xl border border-indigo-100 bg-white p-4 shadow-xs sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">Shared household</p>
+              <h2 className="mt-0.5 truncate text-sm font-bold text-slate-900">{householdInfo?.name || 'Your household'}</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                Invite code: <code className="break-all font-mono font-semibold text-slate-700">{householdInfo?.inviteCode || householdId}</code>
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleCopyInviteCode}
+              className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white hover:bg-indigo-700"
+            >
+              Copy invite code
+            </button>
+          </section>
+
           {syncError && (
             <div role="alert" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
               {syncError}
