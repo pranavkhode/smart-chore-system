@@ -20,7 +20,10 @@ service cloud.firestore {
       allow list: if false;
       allow create: if signedIn()
         && request.resource.data.ownerId == request.auth.uid
-        && request.resource.data.inviteCode == householdId
+        && request.resource.data.inviteCode is string
+        && existsAfter(/databases/$(database)/documents/householdInvites/$(request.resource.data.inviteCode))
+        && getAfter(/databases/$(database)/documents/householdInvites/$(request.resource.data.inviteCode)).data.householdId == householdId
+        && getAfter(/databases/$(database)/documents/householdInvites/$(request.resource.data.inviteCode)).data.ownerId == request.auth.uid
         && request.resource.data.state is map;
       allow update: if isHouseholdMember(householdId)
         && request.resource.data.ownerId == resource.data.ownerId
